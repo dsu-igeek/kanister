@@ -16,6 +16,7 @@ package param
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -97,6 +98,10 @@ type Profile struct {
 	Location      crv1alpha1.Location
 	Credential    Credential
 	SkipSSLVerify bool
+}
+
+func (p *Profile) Unmarshal(profile []byte) error {
+	return json.Unmarshal(profile, p)
 }
 
 // CredentialType

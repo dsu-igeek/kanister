@@ -15,9 +15,15 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 )
 
@@ -26,29 +32,13 @@ type SnapshotManager struct {
 	ivdPETM *ivd.IVDProtectedEntityTypeManager
 }
 
-func NewSnapshotManager(config *VSphereCreds) (*SnapshotManager, error) {
-	ep := config.VCHost
-	if ep == "" {
-		return nil, fmt.Errorf("missing endpoint value")
-	}
-	username := config.VCUser
-	if username == "" {
-		return nil, fmt.Errorf("missing username value")
-	}
-	password := config.VCPass
-	if password == "" {
-		return nil, fmt.Errorf("missing password value")
-	}
-	s3URLBase := config.VCS3UrlBase
-	if s3URLBase == "" {
-		return nil, fmt.Errorf("missing s3URLBase value")
-	}
+func newSnapshotManager(config *VSphereCreds) (*SnapshotManager, error) {
 	params := map[string]interface{}{
-		"vcHost":     ep,
-		"vcUser":     username,
-		"vcPassword": password,
+		"vcHost":     config.Host,
+		"vcUser":     config.User,
+		"vcPassword": config.Pass,
 	}
-	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, s3URLBase, logrus.New())
+	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, config.S3UrlBase, logrus.New())
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create ivd Protected Entity Manager from config %s", err.Error())
 	}
@@ -56,4 +46,58 @@ func NewSnapshotManager(config *VSphereCreds) (*SnapshotManager, error) {
 		config:  config,
 		ivdPETM: ivdPETM,
 	}, nil
+}
+
+type VSphereCreds struct {
+	Host      string `json:"vchost"`
+	User      string `json:"vcuser"`
+	Pass      string `json:"vcpass"`
+	S3UrlBase string `json:"s3urlbase"`
+}
+
+func (v *VSphereCreds) Unmarshal(creds []byte) error {
+	return json.Unmarshal(creds, v)
+}
+
+func (v *VSphereCreds) Validate() error {
+	if v.Host == "" {
+		return fmt.Errorf("missing endpoint value")
+	}
+	if v.User == "" {
+		return fmt.Errorf("missing username value")
+	}
+	if v.Pass == "" {
+		return fmt.Errorf("missing password value")
+	}
+	if v.S3UrlBase == "" {
+		return fmt.Errorf("missing s3URLBase value")
+	}
+	return nil
+}
+
+func GetVsphereCreds(cmd *cobra.Command) (*VSphereCreds, error) {
+	creds := &VSphereCreds{}
+	if err := creds.Unmarshal([]byte(cmd.Flag(vSphereCreds).Value.String())); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal vsphere credentials")
+	}
+	err := creds.Validate()
+	return creds, errors.Wrap(err, "failed to validate vSphere credentials")
+}
+
+func GetDataReaderFromSnapshot(ctx context.Context, config *VSphereCreds, snapshotID string) (io.ReadCloser, error) {
+	snapManager, err := newSnapshotManager(config)
+	if err != nil {
+		return nil, err
+	}
+	// expecting a snapshot id of the form type:volumeID:snapshotID
+	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
+	if err != nil {
+		return nil, err
+	}
+	pe, err := snapManager.ivdPETM.GetProtectedEntity(ctx, peID)
+	if err != nil {
+		return nil, err
+	}
+
+	return pe.GetDataReader(ctx)
 }

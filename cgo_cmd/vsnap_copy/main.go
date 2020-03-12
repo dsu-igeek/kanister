@@ -15,7 +15,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 
 	"github.com/pkg/errors"
@@ -53,8 +52,8 @@ func newRootCommand() *cobra.Command {
 	cmd.PersistentFlags().StringP(pathFlagName, "s", "", "Specify a path suffix (optional)")
 	cmd.PersistentFlags().StringP(profileFlagName, "p", "", "Pass a Profile as a JSON string (required)")
 	cmd.PersistentFlags().StringP(vSphereCreds, "v", "", "Pass vSphereCredentials as a JSON string (required)")
-	_ = cmd.MarkFlagRequired(profileFlagName)
-	_ = cmd.MarkFlagRequired(vSphereCreds)
+	_ = cmd.MarkPersistentFlagRequired(profileFlagName)
+	_ = cmd.MarkPersistentFlagRequired(vSphereCreds)
 	return cmd
 }
 
@@ -63,22 +62,7 @@ func pathFlag(cmd *cobra.Command) string {
 }
 
 func unmarshalProfileFlag(cmd *cobra.Command) (*param.Profile, error) {
-	profileJSON := cmd.Flag(profileFlagName).Value.String()
 	p := &param.Profile{}
-	err := json.Unmarshal([]byte(profileJSON), p)
+	err := p.Unmarshal([]byte(cmd.Flag(profileFlagName).Value.String()))
 	return p, errors.Wrap(err, "failed to unmarshal profile")
-}
-
-type VSphereCreds struct {
-	VCHost      string `json:"vchost"`
-	VCUser      string `json:"vcuser"`
-	VCPass      string `json:"vcpass"`
-	VCS3UrlBase string `json:"s3urlbase"`
-}
-
-func unmarshalVSphereCredentials(cmd *cobra.Command) (*VSphereCreds, error) {
-	credJSON := cmd.Flag(vSphereCreds).Value.String()
-	creds := &VSphereCreds{}
-	err := json.Unmarshal([]byte(credJSON), creds)
-	return creds, errors.Wrap(err, "failed to unmarshal vsphere credentials")
 }

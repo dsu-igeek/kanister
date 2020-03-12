@@ -17,34 +17,40 @@ package main
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 
 	"github.com/kanisterio/kanister/pkg/location"
 	"github.com/kanisterio/kanister/pkg/param"
 )
 
+const (
+	snapIDFlagName = "snap"
+)
+
 func newSnapshotPushCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "push <source>",
+		Use:   "push",
 		Short: "Push a source file or stdin stream to s3-compliant object storage",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(0),
 		// TODO: Example invocations
 		RunE: func(c *cobra.Command, args []string) error {
 			return runSnapshotPush(c, args)
 		},
 	}
+	cmd.PersistentFlags().StringP(snapIDFlagName, "i", "", "Specify the snapshot ID (required)")
+	_ = cmd.MarkPersistentFlagRequired(snapIDFlagName)
 	return cmd
 }
 
 func runSnapshotPush(cmd *cobra.Command, args []string) error {
-	snapshotID := args[0]
+	snapshotID := cmd.Flag(snapIDFlagName).Value.String()
 	profile, err := unmarshalProfileFlag(cmd)
 	if err != nil {
 		return err
 	}
 	path := pathFlag(cmd)
-	config, err := unmarshalVSphereCredentials(cmd)
+	config, err := GetVsphereCreds(cmd)
 	if err != nil {
 		return err
 	}
@@ -53,25 +59,9 @@ func runSnapshotPush(cmd *cobra.Command, args []string) error {
 }
 
 func copySnapshotToObjectStore(ctx context.Context, config *VSphereCreds, profile *param.Profile, snapshot string, path string) error {
-	snapManager, err := NewSnapshotManager(config)
+	reader, err := GetDataReaderFromSnapshot(ctx, config, snapshot)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Failed to get reader from snapshot")
 	}
-
-	// expecting a snapshot id of the form type:volumeID:snapshotID
-	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshot)
-	if err != nil {
-		return err
-	}
-	pe, err := snapManager.ivdPETM.GetProtectedEntity(ctx, peID)
-	if err != nil {
-		return err
-	}
-
-	reader, err := pe.GetDataReader(ctx)
-	if err != nil {
-		return err
-	}
-
 	return location.Write(ctx, reader, *profile, path)
 }
