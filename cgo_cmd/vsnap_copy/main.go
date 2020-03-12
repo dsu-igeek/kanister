@@ -49,20 +49,29 @@ func newRootCommand() *cobra.Command {
 	}
 	cmd.AddCommand(newSnapshotPushCommand())
 	//cmd.AddCommand(newSnapshotPullCommand())
-	cmd.PersistentFlags().StringP(pathFlagName, "s", "", "Specify a path suffix (optional)")
-	cmd.PersistentFlags().StringP(profileFlagName, "p", "", "Pass a Profile as a JSON string (required)")
-	cmd.PersistentFlags().StringP(vSphereCreds, "v", "", "Pass vSphereCredentials as a JSON string (required)")
+	cmd.PersistentFlags().StringP(profileFlagName, "R", "", "Profile describing a remote store as a JSON string (required)")
+	cmd.PersistentFlags().StringP(vSphereCreds, "C", "", "VSphereCredentials as a JSON string (required)")
+	cmd.PersistentFlags().StringP(pathFlagName, "p", "", "Specify a path within the object store (optional)")
 	_ = cmd.MarkPersistentFlagRequired(profileFlagName)
 	_ = cmd.MarkPersistentFlagRequired(vSphereCreds)
 	return cmd
 }
 
-func pathFlag(cmd *cobra.Command) string {
+func ParsePathFlag(cmd *cobra.Command) string {
 	return cmd.Flag(pathFlagName).Value.String()
 }
 
-func unmarshalProfileFlag(cmd *cobra.Command) (*param.Profile, error) {
+func ParseRemoteStoreFlag(cmd *cobra.Command) (*param.Profile, error) {
 	p := &param.Profile{}
 	err := p.Unmarshal([]byte(cmd.Flag(profileFlagName).Value.String()))
-	return p, errors.Wrap(err, "failed to unmarshal profile")
+	return p, errors.Wrap(err, "Failed to unmarshal profile")
+}
+
+func ParseVsphereCredFlag(cmd *cobra.Command) (*VSphereCreds, error) {
+	creds := &VSphereCreds{}
+	if err := creds.Unmarshal([]byte(cmd.Flag(vSphereCreds).Value.String())); err != nil {
+		return nil, errors.Wrap(err, "Failed to unmarshal vSphere credentials")
+	}
+	err := creds.Validate()
+	return creds, errors.Wrap(err, "Failed to validate vSphere credentials")
 }

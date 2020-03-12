@@ -31,7 +31,7 @@ const (
 func newSnapshotPushCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "push",
-		Short: "Push a source file or stdin stream to s3-compliant object storage",
+		Short: "Push a stream from a vSphere protected entity to s3-compliant object storage",
 		Args:  cobra.ExactArgs(0),
 		// TODO: Example invocations
 		RunE: func(c *cobra.Command, args []string) error {
@@ -45,21 +45,21 @@ func newSnapshotPushCommand() *cobra.Command {
 
 func runSnapshotPush(cmd *cobra.Command, args []string) error {
 	snapshotID := cmd.Flag(snapIDFlagName).Value.String()
-	profile, err := unmarshalProfileFlag(cmd)
+	profile, err := ParseRemoteStoreFlag(cmd)
 	if err != nil {
 		return err
 	}
-	path := pathFlag(cmd)
-	config, err := GetVsphereCreds(cmd)
+	path := ParsePathFlag(cmd)
+	creds, err := ParseVsphereCredFlag(cmd)
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
-	return copySnapshotToObjectStore(ctx, config, profile, snapshotID, path)
+	return copySnapshotToObjectStore(ctx, creds, profile, snapshotID, path)
 }
 
-func copySnapshotToObjectStore(ctx context.Context, config *VSphereCreds, profile *param.Profile, snapshot string, path string) error {
-	reader, err := GetDataReaderFromSnapshot(ctx, config, snapshot)
+func copySnapshotToObjectStore(ctx context.Context, creds *VSphereCreds, profile *param.Profile, snapshot string, path string) error {
+	reader, err := GetDataReaderFromSnapshot(ctx, creds, snapshot)
 	if err != nil {
 		return errors.Wrap(err, "Failed to get reader from snapshot")
 	}

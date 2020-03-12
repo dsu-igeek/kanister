@@ -22,7 +22,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 )
@@ -32,18 +31,18 @@ type SnapshotManager struct {
 	ivdPETM *ivd.IVDProtectedEntityTypeManager
 }
 
-func newSnapshotManager(config *VSphereCreds) (*SnapshotManager, error) {
+func newSnapshotManager(creds *VSphereCreds) (*SnapshotManager, error) {
 	params := map[string]interface{}{
-		"vcHost":     config.Host,
-		"vcUser":     config.User,
-		"vcPassword": config.Pass,
+		"vcHost":     creds.Host,
+		"vcUser":     creds.User,
+		"vcPassword": creds.Pass,
 	}
-	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, config.S3UrlBase, logrus.New())
+	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, creds.S3UrlBase, logrus.New())
 	if err != nil {
-		return nil, fmt.Errorf("Unable to create ivd Protected Entity Manager from config %s", err.Error())
+		return nil, errors.Wrap(err, "Unable to create ivd Protected Entity Manager from config")
 	}
 	return &SnapshotManager{
-		config:  config,
+		config:  creds,
 		ivdPETM: ivdPETM,
 	}, nil
 }
@@ -60,32 +59,14 @@ func (v *VSphereCreds) Unmarshal(creds []byte) error {
 }
 
 func (v *VSphereCreds) Validate() error {
-	if v.Host == "" {
-		return fmt.Errorf("missing endpoint value")
-	}
-	if v.User == "" {
-		return fmt.Errorf("missing username value")
-	}
-	if v.Pass == "" {
-		return fmt.Errorf("missing password value")
-	}
-	if v.S3UrlBase == "" {
-		return fmt.Errorf("missing s3URLBase value")
+	if v.Host == "" || v.User == "" || v.Pass == "" || v.S3UrlBase == "" {
+		return fmt.Errorf("invalid vSphere credentials")
 	}
 	return nil
 }
 
-func GetVsphereCreds(cmd *cobra.Command) (*VSphereCreds, error) {
-	creds := &VSphereCreds{}
-	if err := creds.Unmarshal([]byte(cmd.Flag(vSphereCreds).Value.String())); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal vsphere credentials")
-	}
-	err := creds.Validate()
-	return creds, errors.Wrap(err, "failed to validate vSphere credentials")
-}
-
-func GetDataReaderFromSnapshot(ctx context.Context, config *VSphereCreds, snapshotID string) (io.ReadCloser, error) {
-	snapManager, err := newSnapshotManager(config)
+func GetDataReaderFromSnapshot(ctx context.Context, creds *VSphereCreds, snapshotID string) (io.ReadCloser, error) {
+	snapManager, err := newSnapshotManager(creds)
 	if err != nil {
 		return nil, err
 	}
