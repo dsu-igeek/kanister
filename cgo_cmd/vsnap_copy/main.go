@@ -15,50 +15,63 @@
 package main
 
 import (
-	"fmt"
+	"os"
 
-	"github.com/sirupsen/logrus"
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 
-	kvm "github.com/kanisterio/kanister/pkg/blockstorage/vmware"
+	"github.com/kanisterio/kanister/pkg/log"
+	"github.com/kanisterio/kanister/pkg/param"
 )
 
 func main() {
-	config := map[string]string{
-		kvm.VSphereEndpointKey: "hostname",
-		kvm.VSphereUsernameKey: "user",
-		kvm.VSpherePasswordKey: "password",
-		"s3URLBase":            "justToPlacateIVD",
-	}
-	fmt.Printf("Error: %v", throwAwayJustForLinking(config))
+	Execute()
 }
 
-// Based on code in:
-// - kanister/pkg/blockstorage/vmware
-// - vmware/astrolabe/pkg/ivd
-func throwAwayJustForLinking(config map[string]string) error {
-	ep, ok := config[kvm.VSphereEndpointKey]
-	if !ok {
-		return fmt.Errorf("missing endpoint value")
-	}
-	username, ok := config[kvm.VSphereUsernameKey]
-	if !ok {
-		return fmt.Errorf("missing username value")
-	}
-	password, ok := config[kvm.VSpherePasswordKey]
-	if !ok {
-		return fmt.Errorf("missing password value")
-	}
-	s3URLBase, ok := config["s3URLBase"]
-	if !ok {
-		return fmt.Errorf("missing s3URLBase value")
-	}
+const (
+	pathFlagName    = "path"
+	profileFlagName = "profile"
+	vSphereCreds    = "vcreds"
+)
 
-	params := map[string]interface{}{
-		"vcHost":     ep,
-		"vcUser":     username,
-		"vcPassword": password,
+func Execute() {
+	root := newRootCommand()
+	if err := root.Execute(); err != nil {
+		log.WithError(err).Print("vsnapcopy failed to execute")
+		os.Exit(1)
 	}
-	_, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, s3URLBase, logrus.New())
-	return err
+}
+
+func newRootCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "vsnapcopy",
+		Short: "push, pull from object storage",
+	}
+	cmd.AddCommand(newSnapshotPushCommand())
+	//cmd.AddCommand(newSnapshotPullCommand())
+	cmd.PersistentFlags().StringP(profileFlagName, "R", "", "Profile describing a remote store as a JSON string (required)")
+	cmd.PersistentFlags().StringP(vSphereCreds, "C", "", "VSphereCredentials as a JSON string (required)")
+	cmd.PersistentFlags().StringP(pathFlagName, "p", "", "Specify a path within the object store (optional)")
+	_ = cmd.MarkPersistentFlagRequired(profileFlagName)
+	_ = cmd.MarkPersistentFlagRequired(vSphereCreds)
+	return cmd
+}
+
+func ParsePathFlag(cmd *cobra.Command) string {
+	return cmd.Flag(pathFlagName).Value.String()
+}
+
+func ParseRemoteStoreFlag(cmd *cobra.Command) (*param.Profile, error) {
+	p := &param.Profile{}
+	err := p.Unmarshal([]byte(cmd.Flag(profileFlagName).Value.String()))
+	return p, errors.Wrap(err, "Failed to unmarshal profile")
+}
+
+func ParseVSphereCredFlag(cmd *cobra.Command) (*VSphereCreds, error) {
+	creds := &VSphereCreds{}
+	if err := creds.Unmarshal([]byte(cmd.Flag(vSphereCreds).Value.String())); err != nil {
+		return nil, errors.Wrap(err, "Failed to unmarshal vSphere credentials")
+	}
+	err := creds.Validate()
+	return creds, errors.Wrap(err, "Failed to validate vSphere credentials")
 }
