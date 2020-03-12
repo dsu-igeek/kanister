@@ -37,27 +37,28 @@ export GO111MODULE=on
 SRC=/go/src
 
 # set up an alternate go.mod file (needs go v1.14+)
+# the file will get updated by go
 ALT_MOD=./go_vsnap.mod
 ALT_SUM=./go_vsnap.sum
-REPLINE1='github.com/vmware-tanzu/astrolabe => /go/src/github.com/vmware-tanzu/astrolabe'
-REPLINE2='github.com/vmware/gvddk => /go/src/github.com/vmware/gvddk'
-REQLINE1='github.com/vmware-tanzu/astrolabe v0.0.0-00010101000000-000000000000'
-REQLINE2='github.com/vmware/gvddk v0.0.0-00010101000000-000000000000'
-sed \
-    -e '/replace (/ a \\t'"${REPLINE1}"'\n\t'"${REPLINE2}" \
-    -e '/require (/ a \\t'"${REQLINE1}"'\n\t'"${REQLINE2}" \
-    go.mod >${ALT_MOD}
+cp go.mod ${ALT_MOD}
+cat <<EOF >>${ALT_MOD}
+require github.com/vmware-tanzu/astrolabe v0.0.0-00010101000000-000000000000
+require github.com/vmware/gvddk v0.0.0-00010101000000-000000000000
+
+replace github.com/vmware-tanzu/astrolabe => /go/src/github.com/vmware-tanzu/astrolabe
+replace github.com/vmware/gvddk => /go/src/github.com/vmware/gvddk
+EOF
 cp go.sum ${ALT_SUM}
 
 # set up the local use of astrolabe (referenced from ALT_MOD)
 mkdir -p $SRC/github.com/vmware-tanzu
 cp -R /opt/vmware/astrolabe $SRC/github.com/vmware-tanzu
-(cd $SRC/github.com/vmware-tanzu/astrolabe; go mod init)
+(cd $SRC/github.com/vmware-tanzu/astrolabe; if [ ! -f go.mod ] ; then go mod init ; fi)
 
 # set up the local use of gvddk (referenced from ALT_MOD)
 mkdir -p $SRC/github.com/vmware/gvddk
 cp -R /opt/vmware/astrolabe/vendor/github.com/vmware/gvddk $SRC/github.com/vmware
-(cd $SRC/github.com/vmware/gvddk; go mod init)
+(cd $SRC/github.com/vmware/gvddk; if [ ! -f go.mod ] ; then go mod init ; fi)
 
 export CGO_ENABLED=1
 export GO_EXTLINK_ENABLED=1
@@ -69,3 +70,5 @@ go install -v -modfile ${ALT_MOD} \
 
 # To run with cgo_shell:
 #  LD_LIBRARY_PATH=/opt/vddk/lib64 bin/amd64/vsnap_copy
+# To view the DLLs linked in /opt/vddk:
+#  LD_LIBRARY_PATH=/opt/vddk/lib64/ ldd bin/amd64/vsnap_copy
