@@ -50,7 +50,7 @@ func runSnapshotPush(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	path := ParsePathFlag(cmd)
-	creds, err := ParseVsphereCredFlag(cmd)
+	creds, err := ParseVSphereCredFlag(cmd)
 	if err != nil {
 		return err
 	}

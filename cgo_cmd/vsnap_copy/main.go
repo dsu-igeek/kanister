@@ -67,7 +67,7 @@ func ParseRemoteStoreFlag(cmd *cobra.Command) (*param.Profile, error) {
 	return p, errors.Wrap(err, "Failed to unmarshal profile")
 }
 
-func ParseVsphereCredFlag(cmd *cobra.Command) (*VSphereCreds, error) {
+func ParseVSphereCredFlag(cmd *cobra.Command) (*VSphereCreds, error) {
 	creds := &VSphereCreds{}
 	if err := creds.Unmarshal([]byte(cmd.Flag(vSphereCreds).Value.String())); err != nil {
 		return nil, errors.Wrap(err, "Failed to unmarshal vSphere credentials")
