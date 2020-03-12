@@ -45,12 +45,11 @@ vm-driver ?= "kvm"
 # To create the optional vSphere snapshot copy tool the following must be specified to make:
 #
 #   VDDK=/host/path/to/vddk
-#   ASTROLABE_REPO=/host/path/to/local/clone/of/https://github.com/vmware-tanzu/astrolabe
 #
 # The VDDK must be downloaded from VMware and extracted somewhere on the host file system.
 # We consume VDDK through the astrolabe package which embeds a gvddk package.
-# This requires direct access to the package to handle module references so we need local
-# repo access to find the module. 
+# This requires direct access to the package to handle module references so the module will
+# be checked out under the "vendor" directory (ignored by go modules).
 
 ###
 ### These variables should not need tweaking.
@@ -92,10 +91,8 @@ VDDK_MNT:=/opt/vddk
 VDDK_MNT_FLAG:=
 ASTROLABE_REPO_MNT:= /opt/vmware/astrolabe
 ifdef VDDK
-ifdef ASTROLABE_REPO
-	VDDK_MNT_FLAG:=-v "$(VDDK):$(VDDK_MNT)" -v "$(ASTROLABE_REPO):$(ASTROLABE_REPO_MNT)"
+	VDDK_MNT_FLAG:=-v "$(VDDK):$(VDDK_MNT)"
 	EXTRA_BUILD_TARGETS := $(EXTRA_BUILD_TARGETS) bin/$(ARCH)/vsnap_copy
-endif # ASTROLABE_REPO
 endif # VDDK
 
 # If you want to build all binaries, see the 'all-build' rule.

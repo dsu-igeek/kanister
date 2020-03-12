@@ -34,7 +34,20 @@ fi
 
 export GOPATH=/go
 export GO111MODULE=on
-SRC=/go/src
+
+# clone the astrolabe package if it has not been copied in yet
+# this will persist out of the build container
+VENDOR=${PWD}/vendor
+VENDOR_ASTROLABE="${VENDOR}/github.com/vmware-tanzu/astrolabe"
+VENDOR_GVDDK="${VENDOR_ASTROLABE}/vendor/github.com/vmware/gvddk"
+mkdir -p $(dirname ${VENDOR_ASTROLABE})
+if [ ! -d ${VENDOR_ASTROLABE} ]; then
+    (cd $(dirname ${VENDOR_ASTROLABE}); git clone http://github.com/vmware-tanzu/astrolabe)
+    # set up the local use of astrolabe (referenced from ALT_MOD below)
+    (cd ${VENDOR_ASTROLABE}; if [ ! -f go.mod ] ; then go mod init ; fi)
+    # set up the local use of gvddk (referenced from ALT_MOD belpw)
+    (cd ${VENDOR_GVDDK}; if [ ! -f go.mod ] ; then go mod init ; fi)
+fi
 
 # set up an alternate go.mod file (needs go v1.14+)
 # the file will get updated by go
@@ -45,20 +58,10 @@ cat <<EOF >>${ALT_MOD}
 require github.com/vmware-tanzu/astrolabe v0.0.0-00010101000000-000000000000
 require github.com/vmware/gvddk v0.0.0-00010101000000-000000000000
 
-replace github.com/vmware-tanzu/astrolabe => /go/src/github.com/vmware-tanzu/astrolabe
-replace github.com/vmware/gvddk => /go/src/github.com/vmware/gvddk
+replace github.com/vmware-tanzu/astrolabe => ${VENDOR_ASTROLABE}
+replace github.com/vmware/gvddk => ${VENDOR_GVDDK}
 EOF
 cp go.sum ${ALT_SUM}
-
-# set up the local use of astrolabe (referenced from ALT_MOD)
-mkdir -p $SRC/github.com/vmware-tanzu
-cp -R /opt/vmware/astrolabe $SRC/github.com/vmware-tanzu
-(cd $SRC/github.com/vmware-tanzu/astrolabe; if [ ! -f go.mod ] ; then go mod init ; fi)
-
-# set up the local use of gvddk (referenced from ALT_MOD)
-mkdir -p $SRC/github.com/vmware/gvddk
-cp -R /opt/vmware/astrolabe/vendor/github.com/vmware/gvddk $SRC/github.com/vmware
-(cd $SRC/github.com/vmware/gvddk; if [ ! -f go.mod ] ; then go mod init ; fi)
 
 export CGO_ENABLED=1
 export GO_EXTLINK_ENABLED=1
