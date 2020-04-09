@@ -24,6 +24,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+
+	"github.com/kanisterio/kanister/pkg/log"
 )
 
 type SnapshotManager struct {
@@ -36,7 +38,9 @@ func newSnapshotManager(creds *VSphereCreds) (*SnapshotManager, error) {
 		"vcHost":     creds.Host,
 		"vcUser":     creds.User,
 		"vcPassword": creds.Pass,
+		"insecureVC": creds.Insecure,
 	}
+	log.Info().Print(fmt.Sprintf("VSphereCreds: %#v", *creds))
 	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, creds.S3UrlBase, logrus.New())
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create ivd Protected Entity Manager from config")
@@ -52,6 +56,7 @@ type VSphereCreds struct {
 	User      string `json:"vcuser"`
 	Pass      string `json:"vcpass"`
 	S3UrlBase string `json:"s3urlbase"`
+	Insecure  string `json:"insecureVC"`
 }
 
 func (v *VSphereCreds) Unmarshal(creds []byte) error {
@@ -70,15 +75,17 @@ func GetDataReaderFromSnapshot(ctx context.Context, creds *VSphereCreds, snapsho
 	if err != nil {
 		return nil, err
 	}
+	log.Info().Print("Created snapshotManager")
 	// expecting a snapshot id of the form type:volumeID:snapshotID
 	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
 		return nil, err
 	}
+	log.Info().Print(fmt.Sprintf("Created peID with ID %s", snapshotID))
 	pe, err := snapManager.ivdPETM.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		return nil, err
 	}
-
+	log.Info().Print("Got data reader")
 	return pe.GetDataReader(ctx)
 }
