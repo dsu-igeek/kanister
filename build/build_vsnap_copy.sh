@@ -43,11 +43,20 @@ VENDOR_GVDDK="${VENDOR_ASTROLABE}/vendor/github.com/vmware/gvddk"
 mkdir -p $(dirname ${VENDOR_ASTROLABE})
 if [ ! -d ${VENDOR_ASTROLABE} ]; then
     (cd $(dirname ${VENDOR_ASTROLABE}); git clone http://github.com/vmware-tanzu/astrolabe)
-    # set up the local use of astrolabe (referenced from ALT_MOD below)
-    (cd ${VENDOR_ASTROLABE}; if [ ! -f go.mod ] ; then go mod init ; fi)
-    # set up the local use of gvddk (referenced from ALT_MOD belpw)
-    (cd ${VENDOR_GVDDK}; if [ ! -f go.mod ] ; then go mod init ; fi)
 fi
+# set up the local use of astrolabe (referenced from ALT_MOD below)
+(
+    cd ${VENDOR_ASTROLABE};
+    COMMIT=$(git rev-parse HEAD)
+    DESIRED_COMMIT="0405bf54c686d5884a595ed63a92f3f76edda9d1" # version before go.mod
+    if [ ${COMMIT} != ${DESIRED_COMMIT} ]; then
+        rm -f go.mod
+        git checkout ${DESIRED_COMMIT}
+    fi
+    if [ ! -f go.mod ] ; then go mod init ; fi
+)
+# set up the local use of gvddk (referenced from ALT_MOD belpw)
+(cd ${VENDOR_GVDDK}; if [ ! -f go.mod ] ; then go mod init ; fi)
 
 # set up an alternate go.mod file (needs go v1.14+)
 # the file will get updated by go
@@ -65,6 +74,7 @@ cp go.sum ${ALT_SUM}
 
 export CGO_ENABLED=1
 export GO_EXTLINK_ENABLED=1
+export CGO_CFLAGS="-I/opt/vddk/include"
 export CGO_LDFLAGS="-L/opt/vddk/lib64 -lvixDiskLib"
 go install -v -modfile ${ALT_MOD} \
     -installsuffix "static" \
